@@ -12,6 +12,9 @@
     | VERSION | DATE YYYY-MM-DD |                 CONTENT                 |
     |=====================================================================|
     |  1.0.0  |      2024-03-23 | Initial and fully functional commit.    |
+    |---------|-----------------|-----------------------------------------|
+    |  1.0.1  |      2024-03-23 | Add missing annotations and 'f'         |
+    |         |                 | parameter to the QConfigList class.     |
      ‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾
 """
 
@@ -19,6 +22,7 @@
 # Libraries import #
 # =--------------= #
 
+from PySide6.QtCore    import Qt, QEvent
 from PySide6.QtGui     import QMouseEvent
 from PySide6.QtWidgets import QGridLayout, QHBoxLayout, QLabel, QLineEdit, QPushButton, QSizePolicy, QVBoxLayout, \
     QWidget
@@ -38,7 +42,7 @@ __date__         = "2024-03-23"
 __license__      = "LGPL-2.1"
 __maintainer__   = "Quentin Raimbaud"
 __status__       = "Development"
-__version__      = "1.0.0"
+__version__      = "1.0.1"
 
 # =-------------------------------------------------= #
 
@@ -57,6 +61,7 @@ class QConfigList(QWidget):
     def __init__(
             self,
             parent: typing.Optional[QWidget] = None,
+            f: Qt.WindowType = Qt.WindowFlags,
             n: typing.Optional[int] = None,
             max_rows: typing.Optional[int] = None,
             header_texts: typing.Optional[typing.Tuple[str, ...]] = None,
@@ -71,6 +76,7 @@ class QConfigList(QWidget):
         """
         Initializer method.
         If parent is provided, set such a parent to the QConfigList.
+        If f is provided, set such WindowFlags to the QConfigList.
         If n is provided, use such number of columns per row.
         If max_rows is provided, use such a maximum number of rows. Headers are not taken into account for computing \
 the current number of rows.
@@ -84,6 +90,8 @@ QWidget as parameters.
 
         :param parent: The optional parent of the QConfigList to instantiate. By default, None.
         :type parent: QWidget or None
+        :param f: The optional WindowFlags of the QConfigList to instantiate. By default, None.
+        :type f: Qt.WindowFlags
         :param n: The number of columns of the QConfigList to instantiate. By default, None. If None but header_texts \
 or row_widgets or default_row_widget_texts are not None, use the length of such arguments in this order of priority: \
 header_texts > row_widgets > default_row_widget_texts. If all of these 3 arguments are None, use 2.
@@ -114,7 +122,7 @@ dictionary
         """
 
         # Calling the super class's initializer method.
-        super().__init__(parent=parent)
+        super().__init__(parent=parent, f=f)
 
         # Set default arguments for the mutable arguments.
         if n is None:
@@ -262,9 +270,24 @@ dictionary
     # Overridden methods #
     # ================== #
 
-    def eventFilter(self, watched, event):
+    def eventFilter(self, watched: QWidget, event: QEvent) -> bool:
+        """
+        Overridden eventFilter method.
+        This method is called when any widget which have called
+        installEventFilter with the QConfigList itself receive an event.
+
+        :param watched: The QWidget concerned by the received event.
+        :type watched: QWidget
+        :param event: The event received by the QConfigList.
+        :type watched: QEvent
+        """
+
+        # If the event is a MouseButtonPress, call
+        # the widget_clicked callback method.
         if event.type() == QMouseEvent.Type.MouseButtonPress:
             self._widget_clicked(watched)
+
+        # Return without filtering the handled event.
         return super().eventFilter(watched, event)
 
     # ========================== #
@@ -432,7 +455,7 @@ dictionary
             self._grid_layout.itemAt(i).widget() for i in range(tmp, tmp+self._n)
         )
 
-        # Call the _widget_clicked callback method.
+        # Call the widget_clicked callback method.
         self._widget_clicked(widget, no_select=True)
 
         # Ensure the validity of the row and edit the widget stylesheets.
