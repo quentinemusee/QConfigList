@@ -15,6 +15,12 @@
     |---------|-----------------|-----------------------------------------|
     |  1.0.1  |      2024-03-23 | Add missing annotations and 'f'         |
     |         |                 | parameter to the QConfigList class.     |
+    |---------|-----------------|-----------------------------------------|
+    |  1.0.2  |      2024-03-23 | Edit classe and method signatures to    |
+    |         |                 | support both Tuple and List when        |
+    |         |                 | when mutability is an option.           |
+    |         |                 | Import typing utilities directly from   |
+    |         |                 | typing for readability.                 |
      ‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾
 """
 
@@ -22,11 +28,11 @@
 # Libraries import #
 # =--------------= #
 
+from typing            import Callable, Dict, List, Optional, Tuple, Type, Union
 from PySide6.QtCore    import Qt, QEvent
 from PySide6.QtGui     import QMouseEvent
 from PySide6.QtWidgets import QGridLayout, QHBoxLayout, QLabel, QLineEdit, QPushButton, QSizePolicy, QVBoxLayout, \
     QWidget
-import typing
 import re
 
 # =-------------------------------------------------------------------------------------------------------------= #
@@ -42,7 +48,7 @@ __date__         = "2024-03-23"
 __license__      = "LGPL-2.1"
 __maintainer__   = "Quentin Raimbaud"
 __status__       = "Development"
-__version__      = "1.0.1"
+__version__      = "1.0.2"
 
 # =-------------------------------------------------= #
 
@@ -60,18 +66,23 @@ class QConfigList(QWidget):
 
     def __init__(
             self,
-            parent: typing.Optional[QWidget] = None,
+            parent: Optional[QWidget] = None,
             f: Qt.WindowType = Qt.WindowFlags,
-            n: typing.Optional[int] = None,
-            max_rows: typing.Optional[int] = None,
-            header_texts: typing.Optional[typing.Tuple[str, ...]] = None,
-            row_widgets: typing.Optional[typing.Tuple[typing.Type, ...]] = None,
-            default_row_widget_texts: typing.Optional[typing.Tuple[str, ...]] = None,
-            initial: typing.Optional[typing.List[typing.Tuple[QWidget, ...]]] = None,
-            validity_function: typing.Optional[typing.Callable[..., bool]] = None,
+            n: Optional[int] = None,
+            max_rows: Optional[int] = None,
+            header_texts: Optional[Union[Tuple[str, ...], List[str]]] = None,
+            row_widgets: Optional[Union[Type[str, ...], List[Type]]] = None,
+            default_row_widget_texts: Optional[Union[Tuple[str, ...], List[str]]] = None,
+            initial: Optional[
+                Union[
+                    Tuple[Union[Tuple[QWidget, ...], List[QWidget]]],
+                    List[Union[Tuple[QWidget, ...], List[QWidget]]]
+                ]
+            ] = None,
+            validity_function: Optional[Callable[..., bool]] = None,
             no_buttons: bool = False,
             no_verif: bool = False,
-            style: typing.Optional[typing.Dict[str, typing.Union[str, typing.Dict[str, str]]]] = None
+            style: Optional[Dict[str, Union[str, Dict[str, str]]]] = None
     ) -> None:
         """
         Initializer method.
@@ -99,18 +110,18 @@ header_texts > row_widgets > default_row_widget_texts. If all of these 3 argumen
         :param max_rows: The optional maximum number of rows. By default, None.
         :type max_rows: int or None
         :param header_texts: The optional header texts of the QConfigList to instantiate. By default, None.
-        :type header_texts: typing.Optional[typing.Tuple[str, ...]]
+        :type header_texts: Tuple[str, ...] or List[str] or None
         :param row_widgets: The optional widgets of the QConfigList to instantiate. By default, None. If None, use one \
 QLabel and QLineEdit for the rest of the rows if n <1, otherwise use a single QLineEdit.
-        :type row_widgets: typing.Optional[typing.Tuple[typing.Type, ...]]
+        :type row_widgets: Tuple[Type, ...] or List[Type] or None
         :param default_row_widget_texts: The optional default row widget texts of the QConfigList to instantiate. By \
 default, None. If None, use empty strings for the whole rows.
-        :type default_row_widget_texts: typing.Optional[typing.Tuple[str, ...]]
+        :type default_row_widget_texts: Tuple[str, ...] or List[str] or None
         :param initial: The optional widgets to add to the QConfigList's grid layout. By default, None.
-        :type initial: typing.List[typing.Tuple[QWidget, ...]] or None
+        :type initial: Tuple[Tuple[QWidget, ...] or List[QWidget]] or List[Tuple[QWidget, ...] or List[QWidget]] or None
         :param validity_function: The optional validity function used to validate the content of a row. It takes every \
 row's QWidget as parameters. By Default, None. If None, return True anyway.
-        :type validity_function: typing.Optional[typing.Tuple[str, ...]]
+        :type validity_function: Optional[Callable[..., bool]]
         :param no_buttons: If True, don't create the add/remove ('+'/'-') buttons. By default, False.
         :type no_buttons: bool
         :param no_verif: If True, performs no verification on the provided arguments. By default, False.
@@ -118,7 +129,7 @@ row's QWidget as parameters. By Default, None. If None, return True anyway.
         :param style: The optional style dictionary used for the QConfigList. This style dictionary should match the \
 style format introduced by the HotClick software. By default, None. If None, use the QConfigList's default style \
 dictionary
-        :type style: typing.Optional[typing.Dict[str, typing.Union[str, typing.Dict[str, str]]]]
+        :type style: Optional[Dict[str, Union[str, Dict[str, str]]]]
         """
 
         # Calling the super class's initializer method.
@@ -190,14 +201,19 @@ dictionary
         self._max_rows: int = max_rows
         self._first_row_index: int = 0 if header_texts is None else n
         self._selected_row: int = -1
-        self._header_texts: typing.Optional[typing.Tuple[str, ...]] = header_texts
-        self._row_widgets: typing.Tuple[typing.Type, ...] = row_widgets
-        self._default_row_widget_texts: typing.Tuple[str, ...] = default_row_widget_texts
-        self._initial: typing.Optional[typing.List[typing.Tuple[QWidget, ...]]] = initial
-        self._validity_function: typing.Callable[..., bool] = validity_function
+        self._header_texts: Optional[Union[Tuple[str, ...], List[str]]] = header_texts
+        self._row_widgets: Union[Tuple[Type, ...], List[Type]] = row_widgets
+        self._default_row_widget_texts: Union[Tuple[str, ...], List[str]] = default_row_widget_texts
+        self._initial: Optional[
+                Union[
+                    Tuple[Union[Tuple[QWidget, ...], List[QWidget]]],
+                    List[Union[Tuple[QWidget, ...], List[QWidget]]]
+                ]
+            ] = initial
+        self._validity_function: Callable[..., bool] = validity_function
         self._valid_grid_layout_pattern: str = r"color\s*:\s*" + style["Custom"]["invalid-color"] + r"\s*;"
         self._no_buttons: bool = no_buttons
-        self._style: typing.Dict[str, typing.Union[str, typing.Dict[str, str]]] = style
+        self._style: Dict[str, Union[str, Dict[str, str]]] = style
 
         # Initialize the QConfigList UI.
         self._init_ui()
@@ -294,18 +310,18 @@ dictionary
     # Private high-level methods #
     # ========================== #
 
-    def _add_grid_layout_headers(self, header_texts: typing.Tuple[str, ...]) -> None:
+    def _add_grid_layout_headers(self, header_texts: Union[Tuple[str, ...], List[str]]) -> None:
         """
         Add headers to the grid layout.
         The provided header_texts is a tuple containing at least one string element.
         This method is a wrapper to add_grid_layout_row with some hardcoded arguments.
 
         :param header_texts: The QLabel's header texts to add to the grid layout.
-        :type header_texts: typing.Tuple[str, ...]
+        :type header_texts: Tuple[str, ...] orList[str]
         """
 
         # Initialize the QLabels to use as headers.
-        labels: typing.List[QLabel] = []
+        labels: List[QLabel] = []
         for header_text in header_texts:
             label: QLabel = QLabel(header_text)
             self._set_grid_layout_header_stylesheet(label)
@@ -354,7 +370,7 @@ dictionary
         """
 
         # Initialize the QWidgets list.
-        widgets: typing.List[QWidget] = []
+        widgets: List[QWidget] = []
         for i in range(len(self._default_row_widget_texts)):
             widget: QWidget = self._row_widgets[i](
                 self._default_row_widget_texts[i]
@@ -414,7 +430,7 @@ dictionary
         # Unselect every widget within the grid layout.
         for i in range(self._n if self._header_texts is not None else 0, self._grid_layout.count(), self._n):
             # Determine the validity of each row to set their widget stylesheets correctly.
-            row_widgets: typing.Tuple[QWidget, ...] = tuple(
+            row_widgets: Tuple[QWidget, ...] = tuple(
                 self._grid_layout.itemAt(j).widget() for j in range(i, i+self._n)
             )
             validity: bool = self._validity_function(*row_widgets)
@@ -428,7 +444,7 @@ dictionary
         # Select the whole clicked row widgets and determine its
         # validity to set their stylesheets correctly.
         row_nbr: int = self._n * int(index / self._n)
-        row_widgets: typing.Tuple[QWidget, ...] = tuple(
+        row_widgets: Tuple[QWidget, ...] = tuple(
             self._grid_layout.itemAt(j).widget() for j in range(row_nbr, row_nbr + self._n)
         )
         validity: bool = self._validity_function(*row_widgets)
@@ -451,7 +467,7 @@ dictionary
 
         # Retrieve the every widget of the concerned row.
         tmp: int = self._n*int(index/self._n)
-        widgets: typing.Tuple[QWidget, ...] = tuple(
+        widgets: Tuple[QWidget, ...] = tuple(
             self._grid_layout.itemAt(i).widget() for i in range(tmp, tmp+self._n)
         )
 
@@ -657,12 +673,12 @@ dictionary
     # ===================== #
 
     @property
-    def default_style(self) -> typing.Dict[str, typing.Union[str, typing.Dict[str, str]]]:
+    def default_style(self) -> Dict[str, Union[str, Dict[str, str]]]:
         """
         Pseudo getter method for the default QConfigList style dictionary.
 
         :returns: The default QConfigList style dictionary.
-        :rtype: typing.Dict[str, typing.Union[str, typing.Dict[str, str]]]
+        :rtype: Dict[str, Union[str, Dict[str, str]]]
         """
 
         # Return the default QConfigList style dictionary.
