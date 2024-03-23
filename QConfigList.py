@@ -21,6 +21,10 @@
     |         |                 | when mutability is an option.           |
     |         |                 | Import typing utilities directly from   |
     |         |                 | typing for readability.                 |
+    |---------|-----------------|-----------------------------------------|
+    |  1.0.3  |      2024-03-23 | Fix the typing issues inducted by       |
+    |         |                 | v1.0.2 and fix the QConfigList's        |
+    |         |                 | __init__ method.                        |
      ‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾
 """
 
@@ -48,7 +52,7 @@ __date__         = "2024-03-23"
 __license__      = "LGPL-2.1"
 __maintainer__   = "Quentin Raimbaud"
 __status__       = "Development"
-__version__      = "1.0.2"
+__version__      = "1.0.3"
 
 # =-------------------------------------------------= #
 
@@ -67,11 +71,11 @@ class QConfigList(QWidget):
     def __init__(
             self,
             parent: Optional[QWidget] = None,
-            f: Qt.WindowType = Qt.WindowFlags,
+            f: Optional[Qt.WindowType] = None,
             n: Optional[int] = None,
             max_rows: Optional[int] = None,
             header_texts: Optional[Union[Tuple[str, ...], List[str]]] = None,
-            row_widgets: Optional[Union[Type[str, ...], List[Type]]] = None,
+            row_widgets: Optional[Union[Tuple[Type, ...], List[Type]]] = None,
             default_row_widget_texts: Optional[Union[Tuple[str, ...], List[str]]] = None,
             initial: Optional[
                 Union[
@@ -87,7 +91,7 @@ class QConfigList(QWidget):
         """
         Initializer method.
         If parent is provided, set such a parent to the QConfigList.
-        If f is provided, set such WindowFlags to the QConfigList.
+        If f is provided, set such WindowType to the QConfigList.
         If n is provided, use such number of columns per row.
         If max_rows is provided, use such a maximum number of rows. Headers are not taken into account for computing \
 the current number of rows.
@@ -101,8 +105,8 @@ QWidget as parameters.
 
         :param parent: The optional parent of the QConfigList to instantiate. By default, None.
         :type parent: QWidget or None
-        :param f: The optional WindowFlags of the QConfigList to instantiate. By default, None.
-        :type f: Qt.WindowFlags
+        :param f: The optional WindowType of the QConfigList to instantiate. By default, None.
+        :type f: Qt.WindowType or None
         :param n: The number of columns of the QConfigList to instantiate. By default, None. If None but header_texts \
 or row_widgets or default_row_widget_texts are not None, use the length of such arguments in this order of priority: \
 header_texts > row_widgets > default_row_widget_texts. If all of these 3 arguments are None, use 2.
@@ -133,7 +137,18 @@ dictionary
         """
 
         # Calling the super class's initializer method.
-        super().__init__(parent=parent, f=f)
+        print("f =>", f)
+        print("parent =>", parent)
+        if f is not None:
+            if parent is not None:
+                super().__init__(parent=parent, f=f)
+            else:
+                super().__init__(f=f)
+        else:
+            if parent is not None:
+                super().__init__(parent=parent)
+            else:
+                super().__init__()
 
         # Set default arguments for the mutable arguments.
         if n is None:
