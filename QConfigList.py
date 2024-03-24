@@ -25,6 +25,16 @@
     |  1.0.3  |      2024-03-23 | Fix the typing issues inducted by       |
     |         |                 | v1.0.2 and fix the QConfigList's        |
     |         |                 | __init__ method.                        |
+    |---------|-----------------|-----------------------------------------|
+    |  1.0.4  |      2024-03-24 | Remove the header's row stretch.        |
+    |         |                 | Place the QConfigList's __init__ method |
+    |         |                 | "parent" and 'f' argument to the end    |
+    |         |                 | in order to follow Qt constructors     |
+    |         |                 | conventions.                            |
+    |         |                 | Fix the typing issues of the            |
+    |         |                 | QConfigList's initial parameter.        |
+    |         |                 | Fix some typing notations of the        |
+    |         |                 | QConfigList's __init__ method.          |
      ‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾
 """
 
@@ -48,11 +58,11 @@ import re
 
 __author__       = "Quentin Raimbaud"
 __contact__      = "quentin.raimbaud.contact@gmail.com"
-__date__         = "2024-03-23"
+__date__         = "2024-03-24"
 __license__      = "LGPL-2.1"
 __maintainer__   = "Quentin Raimbaud"
 __status__       = "Development"
-__version__      = "1.0.3"
+__version__      = "1.0.4"
 
 # =-------------------------------------------------= #
 
@@ -70,8 +80,6 @@ class QConfigList(QWidget):
 
     def __init__(
             self,
-            parent: Optional[QWidget] = None,
-            f: Optional[Qt.WindowType] = None,
             n: Optional[int] = None,
             max_rows: Optional[int] = None,
             header_texts: Optional[Union[Tuple[str, ...], List[str]]] = None,
@@ -79,19 +87,19 @@ class QConfigList(QWidget):
             default_row_widget_texts: Optional[Union[Tuple[str, ...], List[str]]] = None,
             initial: Optional[
                 Union[
-                    Tuple[Union[Tuple[QWidget, ...], List[QWidget]]],
+                    Tuple[Union[Tuple[QWidget, ...], List[QWidget]], ...],
                     List[Union[Tuple[QWidget, ...], List[QWidget]]]
                 ]
             ] = None,
             validity_function: Optional[Callable[..., bool]] = None,
             no_buttons: bool = False,
             no_verif: bool = False,
-            style: Optional[Dict[str, Union[str, Dict[str, str]]]] = None
+            style: Optional[Dict[str, Union[str, Dict[str, str]]]] = None,
+            parent: Optional[QWidget] = None,
+            f : Optional[Qt.WindowType] = None,
     ) -> None:
         """
         Initializer method.
-        If parent is provided, set such a parent to the QConfigList.
-        If f is provided, set such WindowType to the QConfigList.
         If n is provided, use such number of columns per row.
         If max_rows is provided, use such a maximum number of rows. Headers are not taken into account for computing \
 the current number of rows.
@@ -102,11 +110,9 @@ the current number of rows.
         If validity_function is provided, use such a function to validate the content of a row giving every row's \
 QWidget as parameters.
         If style is provided, use such a style dictionary for the QConfigList.
+        If parent is provided, set such a parent to the QConfigList.
+        If f is provided, set such WindowType to the QConfigList.
 
-        :param parent: The optional parent of the QConfigList to instantiate. By default, None.
-        :type parent: QWidget or None
-        :param f: The optional WindowType of the QConfigList to instantiate. By default, None.
-        :type f: Qt.WindowType or None
         :param n: The number of columns of the QConfigList to instantiate. By default, None. If None but header_texts \
 or row_widgets or default_row_widget_texts are not None, use the length of such arguments in this order of priority: \
 header_texts > row_widgets > default_row_widget_texts. If all of these 3 arguments are None, use 2.
@@ -122,10 +128,11 @@ QLabel and QLineEdit for the rest of the rows if n <1, otherwise use a single QL
 default, None. If None, use empty strings for the whole rows.
         :type default_row_widget_texts: Tuple[str, ...] or List[str] or None
         :param initial: The optional widgets to add to the QConfigList's grid layout. By default, None.
-        :type initial: Tuple[Tuple[QWidget, ...] or List[QWidget]] or List[Tuple[QWidget, ...] or List[QWidget]] or None
+        :type initial: Tuple[Tuple[QWidget, ...] or List[QWidget], ...] or List[Tuple[QWidget, ...] or List[QWidget]] \
+or None
         :param validity_function: The optional validity function used to validate the content of a row. It takes every \
 row's QWidget as parameters. By Default, None. If None, return True anyway.
-        :type validity_function: Optional[Callable[..., bool]]
+        :type validity_function: Callable[..., bool] or None
         :param no_buttons: If True, don't create the add/remove ('+'/'-') buttons. By default, False.
         :type no_buttons: bool
         :param no_verif: If True, performs no verification on the provided arguments. By default, False.
@@ -133,12 +140,14 @@ row's QWidget as parameters. By Default, None. If None, return True anyway.
         :param style: The optional style dictionary used for the QConfigList. This style dictionary should match the \
 style format introduced by the HotClick software. By default, None. If None, use the QConfigList's default style \
 dictionary
-        :type style: Optional[Dict[str, Union[str, Dict[str, str]]]]
+        :type style: Dict[str, Union[str, Dict[str, str]]] or None
+        :param parent: The optional parent of the QConfigList to instantiate. By default, None.
+        :type parent: QWidget or None
+        :param f: The optional WindowType of the QConfigList to instantiate. By default, None.
+        :type f: Qt.WindowType or None
         """
 
         # Calling the super class's initializer method.
-        print("f =>", f)
-        print("parent =>", parent)
         if f is not None:
             if parent is not None:
                 super().__init__(parent=parent, f=f)
@@ -221,7 +230,7 @@ dictionary
         self._default_row_widget_texts: Union[Tuple[str, ...], List[str]] = default_row_widget_texts
         self._initial: Optional[
                 Union[
-                    Tuple[Union[Tuple[QWidget, ...], List[QWidget]]],
+                    Tuple[Union[Tuple[QWidget, ...], List[QWidget]], ...],
                     List[Union[Tuple[QWidget, ...], List[QWidget]]]
                 ]
             ] = initial
@@ -343,7 +352,7 @@ dictionary
             labels.append(label)
 
         # Call _add_grid_layout_widgets with the unpacked initialized labels list.
-        self._add_grid_layout_widgets(*labels)
+        self._add_grid_layout_widgets(*labels, no_stretch=True)
 
     def _initial_grid_layout_rows(self) -> None:
         """
@@ -388,7 +397,7 @@ dictionary
         widgets: List[QWidget] = []
         for i in range(len(self._default_row_widget_texts)):
             widget: QWidget = self._row_widgets[i](
-                self._default_row_widget_texts[i]
+                text=self._default_row_widget_texts[i]
             )
             widget.installEventFilter(self)
             widget.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
@@ -498,12 +507,14 @@ dictionary
     # Private low-level methods #
     # ========================= #
 
-    def _add_grid_layout_widgets(self, *widgets: QWidget) -> None:
+    def _add_grid_layout_widgets(self, *widgets: QWidget, no_stretch: bool = False) -> None:
         """
         Add the provided widgets to the grid layout.
 
         :param *widgets: The widgets to add to the grid layout.
         :type *widgets: QWidget
+        :param no_stretch: If True, set thew newly created gris layout row stretch to 0 instead of 1.
+        :type no_stretch: bool
         """
 
         # Retrieve the current grid layout's row number.
@@ -520,7 +531,10 @@ dictionary
 
         # Update the grid layout row stretch and
         # the row stretch mapping dictionary.
-        self._grid_layout.setRowStretch(row_number, 1)
+        if no_stretch:
+            self._grid_layout.setRowStretch(row_number, 0)
+        else:
+            self._grid_layout.setRowStretch(row_number, 1)
 
     # ================== #
     # StyleSheet methods #
