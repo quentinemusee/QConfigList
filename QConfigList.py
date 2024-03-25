@@ -54,6 +54,19 @@
     |         |                 | the QConfigList's __init__ method.      |
     |         |                 | Rework the way the _widget_interacted   |
     |         |                 | callback get connected to widgets.      |
+    |---------|-----------------|-----------------------------------------|
+    |  1.0.6  |      2024-03-25 | Add an only_one_empty_cell to the       |
+    |         |                 | QConfigList's __init__ method.          |
+    |         |                 | Add a content_function method to the    |
+    |         |                 | QConfigList's __init__ method.          |
+    |         |                 | Use the content_function to retrieve    |
+    |         |                 | the widgets content instead of using    |
+    |         |                 | the text method.                        |
+    |         |                 | Use a QTimer to periodically check if   |
+    |         |                 | any widget content has been modifier    |
+    |         |                 | instead of hard coding connexion        |
+    |         |                 | between some types of QWidgets and some |
+    |         |                 | signals.                                |
      ‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾
 """
 
@@ -62,10 +75,10 @@
 # =--------------= #
 
 from typing            import Any, Callable, Dict, List, Optional, Tuple, Union
-from PySide6.QtCore    import Qt, QEvent
-from PySide6.QtGui     import QMouseEvent
-from PySide6.QtWidgets import QGridLayout, QHBoxLayout, QLabel, QLineEdit, QPushButton, QSizePolicy, QVBoxLayout, \
-    QWidget
+from PySide6.QtCore    import Qt, QEvent, QTimer
+from PySide6.QtGui     import QCloseEvent, QMouseEvent
+from PySide6.QtWidgets import QGridLayout, QHBoxLayout, QLabel, QLayoutItem, QLineEdit, QPushButton, QSizePolicy, \
+    QVBoxLayout, QWidget
 import re
 
 # =-------------------------------------------------------------------------------------------------------------= #
@@ -77,11 +90,11 @@ import re
 
 __author__       = "Quentin Raimbaud"
 __contact__      = "quentin.raimbaud.contact@gmail.com"
-__date__         = "2024-03-24"
+__date__         = "2024-03-25"
 __license__      = "LGPL-2.1"
 __maintainer__   = "Quentin Raimbaud"
 __status__       = "Development"
-__version__      = "1.0.5"
+__version__      = "1.0.6"
 
 # =-------------------------------------------------= #
 
@@ -109,8 +122,10 @@ class QConfigList(QWidget):
                     List[Union[Tuple[QWidget, ...], List[QWidget]]]
                 ]
             ] = None,
+            content_function: Optional[Callable[..., Any]] = None,
             validity_function: Optional[Callable[..., bool]] = None,
             only_one_empty_row: bool = False,
+            only_one_empty_cell: bool = False,
             adjust_parent: bool = True,
             no_buttons: bool = False,
             no_verif: bool = False,
@@ -147,14 +162,22 @@ QLineEdit("Column").
         :param initial: The optional widgets to add to the QConfigList's grid layout. By default, None.
         :type initial: Tuple[Tuple[QWidget, ...] or List[QWidget], ...] or List[Tuple[QWidget, ...] or List[QWidget]] \
 or None
+        :param content_function: The optional content function used to retrieve the content of a widget. It takes a \
+QWidget as parameters. By Default, None. If None, return the widget's text.
+        :type content_function: Callable[..., Any] or None
         :param validity_function: The optional validity function used to validate the content of a row. It takes every \
 row's QWidget as parameters. By Default, None. If None, return True anyway.
         :type validity_function: Callable[..., bool] or None
         :param only_one_empty_row: If True, only one empty row can be present on the grid layout as the same time, \
-         meaning the Add ('+') button will be disabled while an empty row exist.
+meaning the Add ('+') button will be disabled while an empty row exist. If only_one_empty_row: and only_one_empty_cell \
+are True, only_one_empty_cell will be taken into account.
         :type only_one_empty_row: bool
+        :param only_one_empty_cell: Similar to only_one_empty_row, but row with a single empty column will count. By \
+default, False
+        :type only_one_empty_cell: bool
         :param adjust_parent: If True, adjust the parent's size using adjustSize when a row get removed. By default, \
 True.
+        :type adjust_parent: bool
         :param no_buttons: If True, don't create the add/remove ('+'/'-') buttons. By default, False.
         :type no_buttons: bool
         :param no_verif: If True, performs no verification on the provided arguments. By default, False.
@@ -169,7 +192,7 @@ dictionary
         :type f: Qt.WindowType or None
         """
 
-        # Calling the super class's initializer method.
+        # Call the super class's initializer method.
         if f is not None:
             if parent is not None:
                 super().__init__(parent=parent, f=f)
@@ -195,6 +218,14 @@ dictionary
                 )
             else:
                 row_widgets = (lambda parent_: QLineEdit("Column"),)
+        if only_one_empty_row and only_one_empty_cell:
+            only_one_empty_row = False
+        if content_function is None:
+            def content_function(widget: QWidget) -> Any:
+                """Default content function: return the widget's text."""
+                if hasattr(widget, "text"):
+                    return widget.text()
+                return None
         if validity_function is None:
             def validity_function(*_args: QWidget) -> bool:
                 """Default validity function: return True anyway."""
@@ -248,15 +279,26 @@ dictionary
                     List[Union[Tuple[QWidget, ...], List[QWidget]]]
                 ]
             ] = initial
+        self._content_function: Callable[..., Any] = content_function
         self._validity_function: Callable[..., bool] = validity_function
         self._valid_grid_layout_pattern: str = r"color\s*:\s*" + style["Custom"]["invalid-color"] + r"\s*;"
         self._only_one_empty_row: bool = only_one_empty_row
+        self._only_one_empty_cell: bool = only_one_empty_cell
         self._adjust_parent: bool = adjust_parent
         self._no_buttons: bool = no_buttons
         self._style: Dict[str, Union[str, Dict[str, str]]] = style
+        self._widgets_content: List[Tuple[Any, ...]] = []
 
         # Initialize the QConfigList UI.
         self._init_ui()
+
+        # Initialize the QTimer for periodically
+        # check if a widget got modified.
+        self._timer: QTimer = QTimer(self)
+        # For typing issues.
+        if hasattr(self._timer.timeout, "connect"):
+            self._timer.timeout.connect(self._check_modified_widgets)
+        self._timer.start(100)
 
         # If self._initial is not None, fill the
         # QConfigList's grid layout with such row widgets.
@@ -326,6 +368,21 @@ dictionary
     # Overridden methods #
     # ================== #
 
+    def closeEvent(self, event: QCloseEvent):
+        """
+        Overridden closeEvent method.
+        This method is called when the QConfigList get closed.
+
+        :param PySide6.QtGui.QCloseEvent event: The QCloseEvent received.
+        """
+
+        # Stop the timer.
+        self._timer.stop()
+        print("Timer stopped")
+        
+        # Call the super class's closeEvent method.
+        super().closeEvent(event)
+
     def eventFilter(self, watched: QWidget, event: QEvent) -> bool:
         """
         Overridden eventFilter method.
@@ -341,16 +398,16 @@ dictionary
         # If the event is a MouseButtonPress, call
         # the widget_clicked callback method.
         if event.type() == QMouseEvent.Type.MouseButtonPress:
-            self._widget_clicked(watched)
+            self._widget_interacted(watched)
 
+        """
         # If the watched widget is among the grid layout,
         # call the widget_interacted method on such a widget.
         if event.type() not in (
-                QEvent.Type.Enter,
+                #QEvent.Type.Enter,
                 QEvent.Type.FocusAboutToChange,
                 QEvent.Type.FocusIn,
                 QEvent.Type.FocusOut,
-                QEvent.Type.Hide,
                 QEvent.Type.Hide,
                 QEvent.Type.HoverEnter,
                 QEvent.Type.HoverLeave,
@@ -377,6 +434,7 @@ dictionary
                     if watched == widget:
                         self._widget_interacted(watched)
                         break
+        """
 
         # Return without filtering the handled event.
         return super().eventFilter(watched, event)
@@ -430,6 +488,9 @@ dictionary
             # Call _add_grid_layout_widgets with the unpacked initialized widgets list.
             self._add_grid_layout_widgets(*widgets)
 
+        # Update the widgets_content attribute.
+        self._widgets_content = self.widgets_content
+
     def _any_empty_rows(self) -> bool:
         """
         Check if there are any empty rows within the grid layout.
@@ -437,18 +498,36 @@ dictionary
         :returns: The boolean result.
         :rtype: bool
         """
+
         for i in range(int(self._header_texts is not None) + 1, self._grid_layout.rowCount()):
             if self._grid_layout.rowStretch(i):
                 flag: bool = False
                 for j in range(self._n):
-                    widget = self._grid_layout.itemAtPosition(i, j)
+                    widget: QLayoutItem = self._grid_layout.itemAtPosition(i, j)
                     if widget is not None:
-                        if widget.widget().text():
+                        if self._content_function(widget.widget()):
                             flag = True
                     else:
                         pass
                 if not flag:
                     return True
+        return False
+
+    def _any_empty_cell(self) -> bool:
+        """
+        Check if there are any empty cells within the grid layout.
+
+        :returns: The boolean result.
+        :rtype: bool
+        """
+
+        for i in range(int(self._header_texts is not None) + 1, self._grid_layout.rowCount()):
+            if self._grid_layout.rowStretch(i):
+                for j in range(self._n):
+                    widget: QLayoutItem = self._grid_layout.itemAtPosition(i, j)
+                    if widget is not None:
+                        if not self._content_function(widget.widget()):
+                            return True
         return False
 
     # ================ #
@@ -459,7 +538,7 @@ dictionary
         """
         Add a row to the grid layout.
         The row widgets used will be the one from the row_widgets attribute.
-        The default row widget texts used will be the one from the default_row_widgets attribute.
+        The default row widget content used will be the one from the default_row_widgets attribute.
         This method is a wrapper to add_grid_layout_row with some hardcoded arguments.
         """
 
@@ -501,9 +580,12 @@ dictionary
         # Unselect the row.
         self._unselect_row()
 
-        # If thee only_one_empty_row attribute is True,
+        # If the only_one_empty_row attribute is True,
         # disable the Add ('+') button if there is an empty row.
         if not self._only_one_empty_row or not self._any_empty_rows():
+            self._add_button.setDisabled(False)
+        # Same for only_one_empty_cell.
+        if not self._only_one_empty_cell or not self._any_empty_cell():
             self._add_button.setDisabled(False)
 
         # Resize the QConfigList.
@@ -575,17 +657,47 @@ dictionary
         )
 
         # Call the widget_clicked callback method.
-        self._widget_clicked(widget, no_select=True)
+        self._widget_clicked(widget)
 
-        # If thee only_one_empty_row attribute is True,
+        # If the only_one_empty_row attribute is True,
         # disable the Add ('+') button if there is an empty row.
         if self._only_one_empty_row and not self._any_empty_rows():
+            self._add_button.setDisabled(False)
+        # Same for only_one_empty_cell.
+        if self._only_one_empty_cell and not self._any_empty_cell():
             self._add_button.setDisabled(False)
 
         # Ensure the validity of the row and edit the widget stylesheets.
         validity: bool = self._validity_function(*widgets)
         for widget in widgets:
             self._set_grid_layout_widget_selected_stylesheet(widget, validity)
+
+    def _check_modified_widgets(self) -> None:
+        """
+        Check periodically if any widget got modified
+        for calling the _widget_interacted callback method.
+        """
+
+        # If any widget's content has changed since last iteration,
+        # apply the _widget_interacted callback method on such a widget.
+        i: int = 0
+        offset: int = int(self._header_texts is not None) + 1
+        while i < self._grid_layout.rowCount():
+            if self._grid_layout.rowStretch(i):
+                for j in range(self._n):
+                    widget_item: QLayoutItem = self._grid_layout.itemAtPosition(i, j)
+                    if self._grid_layout.itemAtPosition(i, j) is not None:
+                        widget: QWidget = widget_item.widget()
+                        widget_content: Any = self._content_function(widget)
+                        try:
+                            if widget_content != self._widgets_content[i-offset][j]:
+                                self._widget_interacted(widget)
+                        except IndexError:
+                            pass
+            i += 1
+        # Update the row_count and widgets_content attribute.
+        self._row_count = self._grid_layout.rowCount()
+        self._widgets_content = self.widgets_content
 
     # ========================= #
     # Private low-level methods #
@@ -620,9 +732,12 @@ dictionary
         else:
             self._grid_layout.setRowStretch(row_number, 1)
 
-        # If thee only_one_empty_row attribute is True,
+        # If the only_one_empty_row attribute is True,
         # disable the Add ('+') button if there is an empty row.
         if self._only_one_empty_row and self._any_empty_rows():
+            self._add_button.setDisabled(True)
+        # Same for only_one_empty_cell.
+        if self._only_one_empty_cell and self._any_empty_cell():
             self._add_button.setDisabled(True)
 
     # ================== #
@@ -718,11 +833,11 @@ dictionary
     def _set_grid_layout_widget_unselected_stylesheet(self, widget: QWidget, valid: bool = True) -> None:
         """
         Set the provided grid layout widget unselected stylesheet.
-        If valid is False, color the widget text in red.
+        If valid is False, color the widget border in red.
 
         :param widget: The grid layout widget to set the unselected stylesheet.
         :type widget: QWidget
-        :param valid: If True, color the widget text in red.
+        :param valid: If True, color the widget border in red.
         :type valid: bool
         """
 
@@ -730,17 +845,17 @@ dictionary
         widget.setStyleSheet(f"""
             property-alignment: AlignCenter;
             color: {self._style["color"] if valid else self._style["Custom"]["invalid-color"]};
-            border: 1px solid white;
+            border: 2px solid {"white" if valid else self._style["Custom"]["invalid-color"]};
         """)
 
     def _set_grid_layout_widget_selected_stylesheet(self, widget: QWidget, valid: bool = True) -> None:
         """
         Set the provided grid layout widget selected stylesheet.
-        If valid is False, color the widget text in red.
+        If valid is False, color the widget border in red.
 
         :param widget: The grid layout widget to set the selected stylesheet.
         :type widget: QWidget
-        :param valid: If True, color the widget text in red.
+        :param valid: If True, color the widget border in red.
         :type valid: bool
         """
 
@@ -749,7 +864,7 @@ dictionary
             property-alignment: AlignCenter;
             color: {self._style["color"] if valid else self._style["Custom"]["invalid-color"]};
             background-color: {self._style["Custom"]["selected-background-color"]};
-            border: 1px solid white;
+            border: 2px solid {"white" if valid else self._style["Custom"]["invalid-color"]};
         """)
 
     # ============================== #
@@ -841,16 +956,16 @@ dictionary
         ]
 
     @property
-    def widgets_str(self) -> List[Tuple[str, ...]]:
+    def widgets_content(self) -> List[Tuple[Any, ...]]:
         """
-        Pseudo getter method for the string content of the row widgets within the QConfigList.
+        Pseudo getter method for the content of the row widgets within the QConfigList.
         Headers are not part of the returned row widgets list.
 
-        :returns: The string content of the row widgets within the QConfigList.
-        :rtype: List[Tuple[str, ...]]
+        :returns: The content of the row widgets within the QConfigList.
+        :rtype: List[Tuple[Any, ...]]
         """
         return [
-            tuple(widget.text() if hasattr(widget, "text") else "" for widget in row_widgets)
+            tuple(self._content_function(widget) for widget in row_widgets)
             for row_widgets in self.widgets
         ]
 
