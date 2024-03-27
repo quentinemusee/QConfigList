@@ -67,6 +67,8 @@
     |         |                 | instead of hard coding connexion        |
     |         |                 | between some types of QWidgets and some |
     |         |                 | signals.                                |
+    |---------|-----------------|-----------------------------------------|
+    |  1.0.7  |      2024-03-27 | Add a set_stylesheets method.           |
      ‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾
 """
 
@@ -90,11 +92,11 @@ import re
 
 __author__       = "Quentin Raimbaud"
 __contact__      = "quentin.raimbaud.contact@gmail.com"
-__date__         = "2024-03-25"
+__date__         = "2024-03-27"
 __license__      = "LGPL-2.1"
 __maintainer__   = "Quentin Raimbaud"
 __status__       = "Development"
-__version__      = "1.0.6"
+__version__      = "1.0.7q"
 
 # =-------------------------------------------------= #
 
@@ -378,7 +380,6 @@ dictionary
 
         # Stop the timer.
         self._timer.stop()
-        print("Timer stopped")
         
         # Call the super class's closeEvent method.
         super().closeEvent(event)
@@ -867,9 +868,30 @@ dictionary
             border: 2px solid {"white" if valid else self._style["Custom"]["invalid-color"]};
         """)
 
-    # ============================== #
-    # Attribute manipulation methods #
-    # ============================== #
+    def set_stylesheets(self) -> None:
+        """Call every set_stylesheet method."""
+
+        # Set the QConfigList StyleSheets.
+        self._set_config_list_stylesheet()
+        self._set_buttons_container_stylesheet()
+        self._set_add_button_stylesheet()
+        self._set_remove_button_stylesheet()
+        if self._header_texts:
+            for i in range(self._n):
+                self._set_grid_layout_header_stylesheet(self._grid_layout.itemAt(i).widget())
+        for i in range(self._n if self._header_texts is not None else 0, self._grid_layout.count(), self._n):
+            row_widgets: Tuple[QWidget, ...] = tuple(self._grid_layout.itemAt(j).widget() for j in range(i, i+self._n))
+            validity: bool = self._validity_function(*row_widgets)
+            if i == self._selected_row:
+                for widget in row_widgets:
+                    self._set_grid_layout_widget_unselected_stylesheet(widget, validity)
+            else:
+                for widget in row_widgets:
+                    self._set_grid_layout_widget_selected_stylesheet(widget, validity)
+
+    # =============================== #
+    # Attributes manipulation methods #
+    # =============================== #
 
     def _unselect_row(self) -> None:
         """
