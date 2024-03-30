@@ -69,6 +69,14 @@
     |         |                 | signals.                                |
     |---------|-----------------|-----------------------------------------|
     |  1.0.7  |      2024-03-27 | Add a set_stylesheets method.           |
+    |---------|-----------------|-----------------------------------------|
+    |  1.0.8  |      2024-03-30 | Add a widget_edited_callback argument   |
+    |         |                 | to the QConfigList's __init__ method.   |
+    |         |                 | Create the AddRemoveEditEnum enum.      |
+    |         |                 | Add a no_duplicates argument to the     |
+    |         |                 | QConfigList's __init__ method.          |
+    |         |                 | Rename the valid pseudo getter method   |
+    |         |                 | to is_valid.                            |
      ‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾
 """
 
@@ -81,6 +89,7 @@ from PySide6.QtCore    import Qt, QEvent, QTimer
 from PySide6.QtGui     import QCloseEvent, QMouseEvent
 from PySide6.QtWidgets import QGridLayout, QHBoxLayout, QLabel, QLayoutItem, QLineEdit, QPushButton, QSizePolicy, \
     QVBoxLayout, QWidget
+from enum              import Enum
 import re
 
 # =-------------------------------------------------------------------------------------------------------------= #
@@ -92,11 +101,24 @@ import re
 
 __author__       = "Quentin Raimbaud"
 __contact__      = "quentin.raimbaud.contact@gmail.com"
-__date__         = "2024-03-27"
+__date__         = "2024-03-30"
 __license__      = "LGPL-2.1"
 __maintainer__   = "Quentin Raimbaud"
 __status__       = "Development"
-__version__      = "1.0.7q"
+__version__      = "1.0.8"
+
+# =-------------------------------------------------= #
+
+
+# =------------------= #
+# GridActionEnum Enum #
+# =------------------= #
+
+class AddRemoveEditEnum(Enum):
+    """Add / Remove / Edit enum."""
+    ADD    = 0
+    REMOVE = 1
+    EDIT   = 2
 
 # =-------------------------------------------------= #
 
@@ -116,6 +138,7 @@ class QConfigList(QWidget):
             self,
             n: Optional[int] = None,
             max_rows: Optional[int] = None,
+            no_duplicates: Union[Tuple[int, ...], List[int]] = (),
             header_texts: Optional[Union[Tuple[str, ...], List[str]]] = None,
             row_widgets: Optional[Union[Tuple[Callable[..., Any], ...], List[Callable[..., Any]]]] = None,
             initial: Optional[
@@ -125,7 +148,8 @@ class QConfigList(QWidget):
                 ]
             ] = None,
             content_function: Optional[Callable[..., Any]] = None,
-            validity_function: Optional[Callable[..., bool]] = None,
+            validity_function: Optional[Callable[[Tuple[QWidget, ...]], bool]] = None,
+            widget_edited_callback: Optional[Callable[..., Any]] = None,
             only_one_empty_row: bool = False,
             only_one_empty_cell: bool = False,
             adjust_parent: bool = True,
@@ -140,11 +164,15 @@ class QConfigList(QWidget):
         If n is provided, use such number of columns per row.
         If max_rows is provided, use such a maximum number of rows. Headers are not taken into account for computing \
 the current number of rows.
+        If no_duplicates is provided, make every rows invalid if the given column numbers have duplicates. To be \
+aligned with PySide6's row/columns mechanism, the columns start at index 1.
         If header_texts is provided, create QLabel with such header_texts to the QConfigList.
         If row_widgets is provided, use such widgets for each row of the QConfigList.
         If initial is provided, fill the QConfigList's grid layout with the given widgets.
         If validity_function is provided, use such a function to validate the content of a row giving every row's \
 QWidget as parameters.
+        If widget_edited_callback is provided, call such a callback function when any QWidget gets edited, passing the \
+corresponding action AddRemoveEditEnum enum as well as this QWidget's row content as a parameter.
         If style is provided, use such a style dictionary for the QConfigList.
         If parent is provided, set such a parent to the QConfigList.
         If f is provided, set such WindowType to the QConfigList.
@@ -153,8 +181,10 @@ QWidget as parameters.
 or row_widgets are not None, use the length of such arguments in this order of priority: \
 header_texts > row_widgets. If all of these 2 arguments are None, use 2.
         :type n: int or None
-        :param max_rows: The optional maximum number of rows. By default, None.
+        :param max_rows: The optional column numbers to check the duplicates. By default, [].
         :type max_rows: int or None
+        :param max_rows: The optional maximum number of rows. By default, None.
+        :type max_rows: List[int]
         :param header_texts: The optional header texts of the QConfigList to instantiate. By default, None.
         :type header_texts: Tuple[str, ...] or List[str] or None
         :param row_widgets: The optional widgets of the QConfigList to instantiate. By default, None. If None, use one \
@@ -169,7 +199,10 @@ QWidget as parameters. By Default, None. If None, return the widget's text.
         :type content_function: Callable[..., Any] or None
         :param validity_function: The optional validity function used to validate the content of a row. It takes every \
 row's QWidget as parameters. By Default, None. If None, return True anyway.
-        :type validity_function: Callable[..., bool] or None
+        :type validity_function: Callable[[Tuple[QWidget, ...]], bool] or None
+        :param widget_edited_callback: The optional callback function to call when any QWidget get edited. By default, \
+None.
+        :type widget_edited_callback: Callable[..., Any] or None
         :param only_one_empty_row: If True, only one empty row can be present on the grid layout as the same time, \
 meaning the Add ('+') button will be disabled while an empty row exist. If only_one_empty_row: and only_one_empty_cell \
 are True, only_one_empty_cell will be taken into account.
@@ -232,6 +265,19 @@ dictionary
             def validity_function(*_args: QWidget) -> bool:
                 """Default validity function: return True anyway."""
                 return True
+        if no_duplicates:
+            old_validity_function: Callable[[Tuple[QWidget, ...]], bool] = validity_function
+
+            def validity_function(*_args: QWidget) -> bool:
+                """Default validity function: return True anyway."""
+                for column in self._no_duplicates:
+                    column = column-1
+                    widget: QWidget = _args[column]
+                    for row_widgets_ in self.widgets:
+                        widget_: QWidget = row_widgets_[column]
+                        if widget != widget_ and self._content_function(widget) == self._content_function(widget_):
+                            return False
+                return old_validity_function(*_args)
         if style is None:
             style = self.default_style
 
@@ -271,6 +317,7 @@ dictionary
         # Set the straight-forward attributes.
         self._n: int = n
         self._max_rows: int = max_rows
+        self._no_duplicates: List[int] = no_duplicates
         self._first_row_index: int = 0 if header_texts is None else n
         self._selected_row: int = -1
         self._header_texts: Optional[Union[Tuple[str, ...], List[str]]] = header_texts
@@ -283,6 +330,7 @@ dictionary
             ] = initial
         self._content_function: Callable[..., Any] = content_function
         self._validity_function: Callable[..., bool] = validity_function
+        self._widget_edited_callback: Optional[Callable[..., Any]] = widget_edited_callback
         self._valid_grid_layout_pattern: str = r"color\s*:\s*" + style["Custom"]["invalid-color"] + r"\s*;"
         self._only_one_empty_row: bool = only_one_empty_row
         self._only_one_empty_cell: bool = only_one_empty_cell
@@ -319,8 +367,11 @@ dictionary
 
         # Initialize and configure the buttons container widget
         # and its horizontal layout for the add/remove ('+'/'-') buttons.
+        self._buttons_container: Optional[QWidget] = None
+        self._add_button: Optional[QWidget] = None
+        self._remove_button: Optional[QWidget] = None
         if not self._no_buttons:
-            self._buttons_container: QWidget = QWidget()
+            self._buttons_container = QWidget()
             self._set_buttons_container_stylesheet()
             buttons_layout: QHBoxLayout = QHBoxLayout(self._buttons_container)
             buttons_layout.setSpacing(0)
@@ -328,7 +379,7 @@ dictionary
 
             # Initialize, configure and connect the add ('+') button.
             # Then, add it to the buttons container widget.
-            self._add_button: QPushButton = QPushButton("+")
+            self._add_button = QPushButton("+")
             self._add_button.clicked.connect(self._add_grid_layout_row)
             self._set_add_button_stylesheet()
             buttons_layout.addWidget(self._add_button)
@@ -559,6 +610,12 @@ dictionary
         # Call _add_grid_layout_widgets with the unpacked initialized widgets list.
         self._add_grid_layout_widgets(*widgets)
 
+        tmp: int = self._grid_layout.count()
+        self._widget_edited_callback(
+            AddRemoveEditEnum.ADD,
+            *tuple(self._content_function(self._grid_layout.itemAt(i).widget()) for i in range(tmp-self._n, tmp))
+        )
+
     def _remove_grid_layout_selected_row(self):
         """
         Remove the selected row from the grid layout.
@@ -573,6 +630,10 @@ dictionary
         # Update the grid layout row stretch.
         i: int = self._n*self._selected_row
         self._grid_layout.setRowStretch(self._grid_layout.getItemPosition(i)[0], 0)
+        self._widget_edited_callback(
+            AddRemoveEditEnum.REMOVE,
+            *tuple(self._content_function(self._grid_layout.itemAt(i).widget()) for i in range(i, i+self._n))
+        )
         for _ in range(i, i+self._n):
             widget: QWidget = self._grid_layout.itemAt(i).widget()
             self._grid_layout.removeWidget(widget)
@@ -693,6 +754,15 @@ dictionary
                         try:
                             if widget_content != self._widgets_content[i-offset][j]:
                                 self._widget_interacted(widget)
+                                if self._widget_edited_callback is not None:
+                                    self._widget_edited_callback(
+                                        AddRemoveEditEnum.EDIT,
+                                        *tuple(
+                                            self._content_function(
+                                                self._grid_layout.itemAtPosition(i, j).widget()
+                                            ) for j in range(self._n)
+                                        )
+                                    )
                         except IndexError:
                             pass
             i += 1
@@ -756,63 +826,66 @@ dictionary
     def _set_buttons_container_stylesheet(self) -> None:
         """Set the button container stylesheet."""
 
-        # Set the buttons container stylesheet.
-        self._buttons_container.setStyleSheet("""
-            QWidget {
-                border: 1px solid white;
-            }
-        """)
+        # Set the buttons container stylesheet if it exists.
+        if self._buttons_container is not None:
+            self._buttons_container.setStyleSheet("""
+                QWidget {
+                    border: 1px solid white;
+                }
+            """)
 
     def _set_add_button_stylesheet(self) -> None:
         """Set the add button stylesheet."""
 
-        # Set the add button stylesheet.
-        self._add_button.setStyleSheet(f"""
-            QPushButton {{
-                min-width: 25px;
-                min-height: 25px;
-                font-size: 25px;
-                color: {self._style["color"]};
-                border: 0px;
-                max-width: 25px;
-                max-height: 25px;
-                margin-top: 2px;
-                margin-bottom: 2px;
-                margin-left: 2px;
-                padding-top: -5px;
-            }}
-            QPushButton:hover {{
-                border: 2px solid {self._style["QPushButton:hover"]["border-color"]};
-            }}
-            QPushButton:disabled {{
-                background-color: {self._style["QPushButton:disabled"]["background-color"]};
-           }}
-        """)
+        # Set the add button stylesheet if it exists.
+        if self._add_button is not None:
+            self._add_button.setStyleSheet(f"""
+                QPushButton {{
+                    min-width: 25px;
+                    min-height: 25px;
+                    font-size: 25px;
+                    color: {self._style["color"]};
+                    border: 0px;
+                    max-width: 25px;
+                    max-height: 25px;
+                    margin-top: 2px;
+                    margin-bottom: 2px;
+                    margin-left: 2px;
+                    padding-top: -5px;
+                }}
+                QPushButton:hover {{
+                    border: 2px solid {self._style["QPushButton:hover"]["border-color"]};
+                }}
+                QPushButton:disabled {{
+                    background-color: {self._style["QPushButton:disabled"]["background-color"]};
+               }}
+            """)
 
     def _set_remove_button_stylesheet(self) -> None:
         """Set the remove button stylesheet."""
 
-        # Set the remove button stylesheet.
-        self._remove_button.setStyleSheet(f"""
-            QPushButton {{
-                min-width: 25px;
-                min-height: 25px;
-                font-size: 25px;
-                color: {self._style["color"]};
-                border: 0px;
-                max-width: 25px;
-                max-height: 25px;
-                margin-top: 2px;
-                margin-bottom: 2px;
-                padding-top: -5px;
-            }}
-            QPushButton:hover {{
-                border: 2px solid {self._style["QPushButton:hover"]["border-color"]};
-            }}
-            QPushButton:disabled {{
-                background-color: {self._style["QPushButton:disabled"]["background-color"]};
-           }}
-        """)
+        # Set the remove button stylesheet if it exists.
+        if self._remove_button is not None:
+            self._remove_button.setStyleSheet(f"""
+                QPushButton {{
+                    min-width: 25px;
+                    min-height: 25px;
+                    font-size: 25px;
+                    color: {self._style["color"]};
+                    border: 0px;
+                    max-width: 25px;
+                    max-height: 25px;
+                    margin-top: 2px;
+                    margin-bottom: 2px;
+                    padding-top: -5px;
+                }}
+                QPushButton:hover {{
+                    border: 2px solid {self._style["QPushButton:hover"]["border-color"]};
+                }}
+                QPushButton:disabled {{
+                    background-color: {self._style["QPushButton:disabled"]["background-color"]};
+               }}
+            """)
 
     def _set_grid_layout_header_stylesheet(self, label: QLabel) -> None:
         """
@@ -882,12 +955,14 @@ dictionary
         for i in range(self._n if self._header_texts is not None else 0, self._grid_layout.count(), self._n):
             row_widgets: Tuple[QWidget, ...] = tuple(self._grid_layout.itemAt(j).widget() for j in range(i, i+self._n))
             validity: bool = self._validity_function(*row_widgets)
+            #print("ROW =", [r.text() for r in row_widgets])
+            #print("VALIDITY =", validity)
             if i == self._selected_row:
                 for widget in row_widgets:
-                    self._set_grid_layout_widget_unselected_stylesheet(widget, validity)
+                    self._set_grid_layout_widget_selected_stylesheet(widget, validity)
             else:
                 for widget in row_widgets:
-                    self._set_grid_layout_widget_selected_stylesheet(widget, validity)
+                    self._set_grid_layout_widget_unselected_stylesheet(widget, validity)
 
     # =============================== #
     # Attributes manipulation methods #
@@ -975,6 +1050,7 @@ dictionary
                 if self._grid_layout.itemAtPosition(i, j) is not None
             )
             for i in range(int(self._header_texts is not None)+1, self._grid_layout.rowCount())
+                if self._grid_layout.rowStretch(i)
         ]
 
     @property
@@ -992,7 +1068,7 @@ dictionary
         ]
 
     @property
-    def valid(self) -> bool:
+    def is_valid(self) -> bool:
         """
         Pseudo getter method for the validity of every grid layout rows.
 

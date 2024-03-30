@@ -10,4 +10,4 @@
 
 # Allow importing the QConfigList class directly
 # from the QConfigList directory.
-from .QConfigList import QConfigList
+from .QConfigList import AddRemoveEditEnum, QConfigList
