@@ -955,8 +955,6 @@ dictionary
         for i in range(self._n if self._header_texts is not None else 0, self._grid_layout.count(), self._n):
             row_widgets: Tuple[QWidget, ...] = tuple(self._grid_layout.itemAt(j).widget() for j in range(i, i+self._n))
             validity: bool = self._validity_function(*row_widgets)
-            #print("ROW =", [r.text() for r in row_widgets])
-            #print("VALIDITY =", validity)
             if i == self._selected_row:
                 for widget in row_widgets:
                     self._set_grid_layout_widget_selected_stylesheet(widget, validity)
@@ -1050,7 +1048,7 @@ dictionary
                 if self._grid_layout.itemAtPosition(i, j) is not None
             )
             for i in range(int(self._header_texts is not None)+1, self._grid_layout.rowCount())
-                if self._grid_layout.rowStretch(i)
+            if self._grid_layout.rowStretch(i)
         ]
 
     @property

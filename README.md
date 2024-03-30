@@ -20,7 +20,7 @@ The documentation is **as code** using reST: you fill find everything you want w
     - If validity_function is provided, use such a function to validate the content of a row giving every row's QWidget as parameters.  
     - If style is provided, use such a style dictionary for the QConfigList.
   
- - **default_style**: t_yping.Dict[str, typing.Union[str, typing.Dict[str, str]]]_
+ - **default_style**: typing.Dict[str, typing.Union[str, typing.Dict[str, str]]]_
      - Attribute returning the default style dictionary of the QConfigList.
    
  - **valid**: _bool_
