@@ -77,6 +77,10 @@
     |         |                 | QConfigList's __init__ method.          |
     |         |                 | Rename the valid pseudo getter method   |
     |         |                 | to is_valid.                            |
+    |---------|-----------------|-----------------------------------------|
+    |  1.0.9  |      2024-03-31 | Fix the grid Qwidgets content           |
+    |         |                 | comparisons not comparing with the      |
+    |         |                 | right QWidget in some cases.            |
      ‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾
 """
 
@@ -105,7 +109,7 @@ __date__         = "2024-03-30"
 __license__      = "LGPL-2.1"
 __maintainer__   = "Quentin Raimbaud"
 __status__       = "Development"
-__version__      = "1.0.8"
+__version__      = "1.0.9"
 
 # =-------------------------------------------------= #
 
@@ -268,16 +272,16 @@ dictionary
         if no_duplicates:
             old_validity_function: Callable[[Tuple[QWidget, ...]], bool] = validity_function
 
-            def validity_function(*_args: QWidget) -> bool:
+            def validity_function(*args: QWidget) -> bool:
                 """Default validity function: return True anyway."""
                 for column in self._no_duplicates:
                     column = column-1
-                    widget: QWidget = _args[column]
+                    widget: QWidget = args[column]
                     for row_widgets_ in self.widgets:
                         widget_: QWidget = row_widgets_[column]
                         if widget != widget_ and self._content_function(widget) == self._content_function(widget_):
                             return False
-                return old_validity_function(*_args)
+                return old_validity_function(*args)
         if style is None:
             style = self.default_style
 
@@ -743,16 +747,27 @@ dictionary
         # If any widget's content has changed since last iteration,
         # apply the _widget_interacted callback method on such a widget.
         i: int = 0
+        i_: int = 0
         offset: int = int(self._header_texts is not None) + 1
         while i < self._grid_layout.rowCount():
             if self._grid_layout.rowStretch(i):
+                """
+                if not self._no_buttons:
+                    print("=============================")
+                    print([self._content_function(self._grid_layout.itemAtPosition(i, j).widget()) for j in range(self._n)])
+                    print("CMP WITH")
+                    print("i =", i, "offset =", offset)
+                    print("rowStretch ==>", self._grid_layout.rowStretch(0), ':', self._grid_layout.rowStretch(1))
+                    print(self._widgets_content)
+                    print("=============================")
+                """
                 for j in range(self._n):
                     widget_item: QLayoutItem = self._grid_layout.itemAtPosition(i, j)
                     if self._grid_layout.itemAtPosition(i, j) is not None:
                         widget: QWidget = widget_item.widget()
                         widget_content: Any = self._content_function(widget)
                         try:
-                            if widget_content != self._widgets_content[i-offset][j]:
+                            if widget_content != self._widgets_content[i_][j]:
                                 self._widget_interacted(widget)
                                 if self._widget_edited_callback is not None:
                                     self._widget_edited_callback(
@@ -765,6 +780,7 @@ dictionary
                                     )
                         except IndexError:
                             pass
+                i_ += 1
             i += 1
         # Update the row_count and widgets_content attribute.
         self._row_count = self._grid_layout.rowCount()
