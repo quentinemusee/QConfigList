@@ -81,6 +81,9 @@
     |  1.0.9  |      2024-03-31 | Fix the grid Qwidgets content           |
     |         |                 | comparisons not comparing with the      |
     |         |                 | right QWidget in some cases.            |
+    |---------|-----------------|-----------------------------------------|
+    |  1.1.0  |      2024-04-03 | Clean the debug artifacts for release   |
+    |         |                 | 1.1.0.                                  |
      ‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾
 """
 
@@ -105,11 +108,11 @@ import re
 
 __author__       = "Quentin Raimbaud"
 __contact__      = "quentin.raimbaud.contact@gmail.com"
-__date__         = "2024-03-30"
+__date__         = "2024-04-03"
 __license__      = "LGPL-2.1"
 __maintainer__   = "Quentin Raimbaud"
 __status__       = "Development"
-__version__      = "1.0.9"
+__version__      = "1.1.0"
 
 # =-------------------------------------------------= #
 
@@ -748,19 +751,8 @@ dictionary
         # apply the _widget_interacted callback method on such a widget.
         i: int = 0
         i_: int = 0
-        offset: int = int(self._header_texts is not None) + 1
         while i < self._grid_layout.rowCount():
             if self._grid_layout.rowStretch(i):
-                """
-                if not self._no_buttons:
-                    print("=============================")
-                    print([self._content_function(self._grid_layout.itemAtPosition(i, j).widget()) for j in range(self._n)])
-                    print("CMP WITH")
-                    print("i =", i, "offset =", offset)
-                    print("rowStretch ==>", self._grid_layout.rowStretch(0), ':', self._grid_layout.rowStretch(1))
-                    print(self._widgets_content)
-                    print("=============================")
-                """
                 for j in range(self._n):
                     widget_item: QLayoutItem = self._grid_layout.itemAtPosition(i, j)
                     if self._grid_layout.itemAtPosition(i, j) is not None:
